@@ -27,17 +27,22 @@ async def get_video_data(video_id: str) -> dict:
             return await response.json()
 
 
-def get_stream(link: str) -> Optional[Stream] | None:
+def get_stream(link: str, fmt: Optional[str]=None) -> Optional[Stream] | None:
     try:
-        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype="mp4").order_by("resolution").desc().first()
+        if fmt:
+            return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
+                                                        .order_by("resolution").desc().first()
+
+        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype="mp4")\
+                                                        .order_by("resolution").desc().first()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-async def fetch_video_info(link: str):
+async def fetch_video_info(link: str, fmt: Optional[str]=None):
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor() as pool:
-        return await loop.run_in_executor(pool,get_stream, link)
+        return await loop.run_in_executor(pool,get_stream, link, fmt)
 
 
 @app.get("/get-video-data/{video_id}")
@@ -55,5 +60,20 @@ async def get_metadata(video_id: str):
     if not res:
         return HTTPException(status_code=404, detail="Failed to fetch video data")
     return res.url
+
+
+@app.get("/get-download-link/{video_id}/{fmt_video}")
+async def get_metadata(video_id: str, fmt_video: str):
+    link = f"https://www.youtube.com/watch?v={video_id}"
+    res = await fetch_video_info(link, fmt_video)
+    if not res:
+        return HTTPException(status_code=404, detail="Failed to fetch video data")
+    return {
+        "duration": res._monostate.duration,
+        "filesize_mb": res._filesize_mb,
+        "title": res._monostate.title,
+        "url": res.url,
+        "resolution": res.resolution
+    }
 
 
