@@ -8,7 +8,7 @@ import os
 app = FastAPI()
 
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
-YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/videos"
+YOUTUBE_API_URL = os.getenv('YOUTUBE_API_URL')
 
 
 async def get_video_data(video_id: str) -> dict:
