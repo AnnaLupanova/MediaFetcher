@@ -27,9 +27,12 @@ async def get_video_data(video_id: str) -> dict:
             return await response.json()
 
 
-def get_stream(link: str) -> Optional[Stream] | None:
+def get_stream(link: str) -> Optional[Stream]:
     try:
-        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype="mp4").order_by("resolution").desc().first()
+        yt = YouTube(link, on_progress_callback=on_progress).streams.filter(subtype="mp4").order_by("resolution").desc().first()
+        if not yt:
+            raise HTTPException(status_code=404, detail="Failed to fetch video data")
+        return yt
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -52,8 +55,6 @@ async def get_data_from_youtube(video_id: str):
 async def get_metadata(video_id: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link)
-    if not res:
-        return HTTPException(status_code=404, detail="Failed to fetch video data")
     return res.url
 
 
