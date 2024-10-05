@@ -2,3 +2,7 @@ fastapi
 uvicorn
 aiohttp
 pytubefix
+pytest-asyncio
+pytest
+httpx
+pytest-mock

@@ -40,8 +40,6 @@ def get_stream(link: str, fmt: Optional[str]='mp4') -> Optional[Stream]:
     try:
         yt = YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
                                                         .order_by("resolution").desc().first()
-        if not yt:
-            raise HTTPException(status_code=404, detail="Video not found")
         return yt
     except Exception as e:
         ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
@@ -49,7 +47,7 @@ def get_stream(link: str, fmt: Optional[str]='mp4') -> Optional[Stream]:
         raise HTTPException(status_code=400, detail=message)
 
 
-async def fetch_video_info(link: str, fmt: Optional[str]=None):
+async def fetch_video_info(link: str, fmt: Optional[str]='mp4'):
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor() as pool:
         return await loop.run_in_executor(pool,get_stream, link, fmt)
@@ -78,13 +76,17 @@ async def get_data_from_youtube(video_id: str):
 async def get_metadata(video_id: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link)
+    if not res:
+        raise HTTPException(status_code=404, detail="Video not found")
     return res.url
 
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
-async def get_metadata(video_id: str, fmt_video: str):
+async def get_metadata_with_fmt(video_id: str, fmt_video: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link, fmt_video)
+    if not res:
+        raise HTTPException(status_code=404, detail="Video not found")
     return {
         "duration": res._monostate.duration,
         "filesize_mb": res._filesize_mb,
@@ -92,3 +94,6 @@ async def get_metadata(video_id: str, fmt_video: str):
         "url": res.url,
         "resolution": res.resolution
     }
+
+if __name__ == "__main__":
+    uvicorn.run("main:app")
