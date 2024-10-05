@@ -94,6 +94,3 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: str):
         "url": res.url,
         "resolution": res.resolution
     }
-
-if __name__ == "__main__":
-    uvicorn.run("main:app")
