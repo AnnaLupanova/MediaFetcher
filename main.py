@@ -36,7 +36,6 @@ async def get_video_data(video_id: str) -> dict:
 
 def get_stream(link: str, fmt: Optional[VideoFormat]='mp4') -> Optional[Stream]:
     try:
-        print(list(VideoFormat))
         if fmt not in (format.value for format in VideoFormat):
             raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
 
