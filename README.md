@@ -21,3 +21,9 @@ Run the live server:
 ```
 uvicorn main:app --reload
 ```
+
+Endpoints:
+
+- 127.0.0.1:8000/get-download-link/{video_id}
+- 127.0.0.1:8000/get-video-data/{video_id}
+
