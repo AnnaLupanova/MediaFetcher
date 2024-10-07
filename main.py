@@ -6,6 +6,7 @@ from typing import Optional
 from pytubefix import Stream
 from concurrent.futures import ThreadPoolExecutor
 import os
+import uvicorn
 from pytubefix import YouTube
 from pytubefix.cli import on_progress
 import re
@@ -96,6 +97,6 @@ async def get_metadata(video_id: str, fmt_video: str):
         "resolution": res.resolution
     }
 
-
 if __name__ == "__main__":
+
     uvicorn.run("main:app")
