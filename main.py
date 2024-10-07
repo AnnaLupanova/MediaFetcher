@@ -7,7 +7,7 @@ from pytubefix import Stream
 from concurrent.futures import ThreadPoolExecutor
 import os
 import uvicorn
-from pytubefix import YouTube
+from pytubefix import YouTube, exceptions
 from pytubefix.cli import on_progress
 import re
 from enum import Enum
@@ -49,7 +49,11 @@ def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optiona
 
         return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
                                                         .order_by("resolution").desc().first()
-        return yt
+
+    except exceptions.VideoUnavailable:
+        raise HTTPException(status_code=404, detail="Video not found")
+    except HTTPException: 
+        raise
     except Exception as e:
         ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
         message = ansi_escape.sub('', str(e))
@@ -85,8 +89,6 @@ async def get_data_from_youtube(video_id: str):
 async def get_metadata(video_id: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link)
-    if not res:
-        raise HTTPException(status_code=404, detail="Video not found")
     return res.url
 
 
@@ -94,8 +96,6 @@ async def get_metadata(video_id: str):
 async def get_metadata_with_fmt(video_id: str, fmt_video: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link, fmt_video)
-    if not res:
-        raise HTTPException(status_code=404, detail="Video not found")
     return {
         "duration": res._monostate.duration,
         "filesize_mb": res._filesize_mb,
@@ -103,7 +103,3 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: str):
         "url": res.url,
         "resolution": res.resolution
     }
-
-if __name__ == "__main__":
-
-    uvicorn.run("main:app")

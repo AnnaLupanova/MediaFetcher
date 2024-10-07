@@ -6,3 +6,5 @@ pytest-asyncio
 pytest
 httpx
 pytest-mock
+pydantic
+pydantic-settings

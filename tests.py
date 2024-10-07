@@ -23,8 +23,15 @@ def test_invalid_url():
 
 
 @pytest.mark.asyncio
-async def test_get_video_not_found():
+async def test_get_video_not_supported():
     response = client.get("/get-download-link/7t2alSnE2-I/mp3")
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Unsupported format: mp3"}
+
+
+@pytest.mark.asyncio
+async def test_get_video_not_found():
+    response = client.get("/get-download-link/eeeeeeeeeee")
     assert response.status_code == 404
     assert response.json() == {"detail": "Video not found"}
 
