@@ -63,8 +63,6 @@ async def get_data_from_youtube(video_id: str):
 async def get_metadata(video_id: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link)
-    if not res:
-        return HTTPException(status_code=404, detail="Failed to fetch video data")
     return res.url
 
 
