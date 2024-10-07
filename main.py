@@ -5,13 +5,20 @@ from typing import Optional
 from pytubefix import Stream
 from concurrent.futures import ThreadPoolExecutor
 import os
+import uvicorn
 from pytubefix import YouTube
 from pytubefix.cli import on_progress
+from enum import Enum
 
 app = FastAPI()
 
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 YOUTUBE_API_URL = os.getenv('YOUTUBE_API_URL')
+
+class VideoFormat(Enum):
+    MP4 = "mp4"
+    WEBM = "webm"
+    MKV = "mkv" 
 
 
 async def get_video_data(video_id: str) -> dict:
@@ -27,13 +34,13 @@ async def get_video_data(video_id: str) -> dict:
             return await response.json()
 
 
-def get_stream(link: str, fmt: Optional[str]=None) -> Optional[Stream] | None:
+def get_stream(link: str, fmt: Optional[VideoFormat]='mp4') -> Optional[Stream]:
     try:
-        if fmt:
-            return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
-                                                        .order_by("resolution").desc().first()
+        print(list(VideoFormat))
+        if fmt not in (format.value for format in VideoFormat):
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
 
-        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype="mp4")\
+        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt.value)\
                                                         .order_by("resolution").desc().first()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -76,4 +83,6 @@ async def get_metadata(video_id: str, fmt_video: str):
         "resolution": res.resolution
     }
 
+if __name__ == "__main__":
 
+    uvicorn.run("main:app")
