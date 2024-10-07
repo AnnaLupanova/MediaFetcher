@@ -6,6 +6,7 @@ from typing import Optional
 from pytubefix import Stream
 from concurrent.futures import ThreadPoolExecutor
 import os
+import uvicorn
 from pytubefix import YouTube
 from pytubefix.cli import on_progress
 import re
@@ -51,8 +52,6 @@ def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optiona
     except Exception as e:
         ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
         message = ansi_escape.sub('', str(e))
-        import traceback
-        print(traceback.format_exc())
         raise HTTPException(status_code=400, detail=message)
 
 
@@ -100,3 +99,6 @@ async def get_metadata(video_id: str, fmt_video: str):
         "resolution": res.resolution
     }
 
+if __name__ == "__main__":
+
+    uvicorn.run("main:app")
