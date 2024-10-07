@@ -12,9 +12,13 @@ Install packages:
 ```
 pip install -r requirements.txt
 ```
-Set Environment Variable 
+
+Create .env file and insert data
 ```
-YOUTUBE_API_KEY=<YOUTUBE_API_KEY>
+YOUTUBE_VIDEO_ID_PATTERN="[0-9A-Za-z_-]{11}"
+YOUTUBE_API_KEY="<YOUTUBE_API_KEY>"
+YOUTUBE_API_URL="<YOUTUBE_API_URL>"
+
 ```
 
 Run the live server:

@@ -2,3 +2,5 @@ fastapi
 uvicorn
 aiohttp
 pytubefix
+pydantic
+pydantic-settings
