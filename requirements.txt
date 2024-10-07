@@ -2,5 +2,9 @@ fastapi
 uvicorn
 aiohttp
 pytubefix
+pytest-asyncio
+pytest
+httpx
+pytest-mock
 pydantic
 pydantic-settings

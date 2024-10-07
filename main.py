@@ -7,7 +7,7 @@ from pytubefix import Stream
 from concurrent.futures import ThreadPoolExecutor
 import os
 import uvicorn
-from pytubefix import YouTube
+from pytubefix import YouTube, exceptions
 from pytubefix.cli import on_progress
 import re
 from enum import Enum
@@ -49,13 +49,18 @@ def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optiona
 
         return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
                                                         .order_by("resolution").desc().first()
+
+    except exceptions.VideoUnavailable:
+        raise HTTPException(status_code=404, detail="Video not found")
+    except HTTPException: 
+        raise
     except Exception as e:
         ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
         message = ansi_escape.sub('', str(e))
         raise HTTPException(status_code=400, detail=message)
 
 
-async def fetch_video_info(link: str, fmt: Optional[str]=None):
+async def fetch_video_info(link: str, fmt: Optional[str]='mp4'):
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor() as pool:
         return await loop.run_in_executor(pool,get_stream, link, fmt)
@@ -88,7 +93,7 @@ async def get_metadata(video_id: str):
 
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
-async def get_metadata(video_id: str, fmt_video: str):
+async def get_metadata_with_fmt(video_id: str, fmt_video: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
     res = await fetch_video_info(link, fmt_video)
     return {
@@ -98,7 +103,3 @@ async def get_metadata(video_id: str, fmt_video: str):
         "url": res.url,
         "resolution": res.resolution
     }
-
-if __name__ == "__main__":
-
-    uvicorn.run("main:app")
