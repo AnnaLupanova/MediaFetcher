@@ -9,11 +9,18 @@ import os
 from pytubefix import YouTube
 from pytubefix.cli import on_progress
 import re
-import uvicorn
+from enum import Enum
 from settings import AppSettings
 
 app = FastAPI()
 settings = AppSettings()
+
+
+class VideoFormat(Enum):
+    MP4 = "mp4"
+    WEBM = "webm"
+    MKV = "mkv" 
+
 
 async def get_video_data(video_id: str) -> dict:
     params = {
@@ -34,16 +41,18 @@ async def get_video_data(video_id: str) -> dict:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def get_stream(link: str, fmt: Optional[str]='mp4') -> Optional[Stream]:
+def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optional[Stream]:
     try:
-        yt = YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
+        if fmt and fmt not in (format.value for format in VideoFormat):
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
+
+        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
                                                         .order_by("resolution").desc().first()
-        if not yt:
-            raise HTTPException(status_code=404, detail="Video not found")
-        return yt
     except Exception as e:
         ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
         message = ansi_escape.sub('', str(e))
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=400, detail=message)
 
 
@@ -66,11 +75,6 @@ async def get_data_from_youtube(video_id: str):
     pattern = settings.youtube_video_id_pattern
     if not is_valid(pattern, video_id):
         raise HTTPException(status_code=400, detail=f"Video id don't match pattern={pattern}")
-    try:
-        valid_video_id = Video(video_id=video_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Video id '{video_id}' doesn't match the required pattern.")
-
     res = await get_video_data(video_id)
     if 'items' not in res or not res['items']:
         raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found")
@@ -96,6 +100,3 @@ async def get_metadata(video_id: str, fmt_video: str):
         "resolution": res.resolution
     }
 
-
-if __name__ == "__main__":
-    uvicorn.run("main:app")
