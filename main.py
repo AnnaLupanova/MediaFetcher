@@ -1,31 +1,37 @@
 import aiohttp.client_exceptions
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Path
 import aiohttp
 import asyncio
 from typing import Optional
 from pytubefix import Stream
 from concurrent.futures import ThreadPoolExecutor
 import os
+import uvicorn
 from pytubefix import YouTube
 from pytubefix.cli import on_progress
 import re
-import uvicorn
+from enum import Enum
+from settings import AppSettings
 
 app = FastAPI()
+settings = AppSettings()
 
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
-YOUTUBE_API_URL = os.getenv("YOUTUBE_API_URL", "")
+
+class VideoFormat(Enum):
+    MP4 = "mp4"
+    WEBM = "webm"
+    MKV = "mkv" 
 
 
 async def get_video_data(video_id: str) -> dict:
     params = {
         "part": "snippet",
         "id": video_id,
-        "key": YOUTUBE_API_KEY
+        "key": settings.youtube_api_key
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(YOUTUBE_API_URL, params=params) as response:
+            async with session.get(settings.youtube_api_url, params=params) as response:
                 result = await response.json()
                 if response.status != 200:
                     raise HTTPException(status_code=response.status, detail=result["error"]["message"])
@@ -36,9 +42,12 @@ async def get_video_data(video_id: str) -> dict:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def get_stream(link: str, fmt: Optional[str]='mp4') -> Optional[Stream]:
+def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optional[Stream]:
     try:
-        yt = YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
+        if fmt and fmt not in (format.value for format in VideoFormat):
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
+
+        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
                                                         .order_by("resolution").desc().first()
         return yt
     except Exception as e:
@@ -63,7 +72,7 @@ def is_valid(pattern: str,id: str) -> bool:
 
 @app.get("/get-video-data/{video_id}")
 async def get_data_from_youtube(video_id: str):
-    pattern = r"[0-9A-Za-z_-]{11}"
+    pattern = settings.youtube_video_id_pattern
     if not is_valid(pattern, video_id):
         raise HTTPException(status_code=400, detail=f"Video id don't match pattern={pattern}")
     res = await get_video_data(video_id)
@@ -94,3 +103,7 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: str):
         "url": res.url,
         "resolution": res.resolution
     }
+
+if __name__ == "__main__":
+
+    uvicorn.run("main:app")
