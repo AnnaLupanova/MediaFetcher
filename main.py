@@ -1,3 +1,5 @@
+import json
+
 import aiohttp.client_exceptions
 from fastapi import FastAPI, HTTPException, Path
 import aiohttp
@@ -12,9 +14,22 @@ from pytubefix.cli import on_progress
 import re
 from enum import Enum
 from settings import AppSettings
+from service.redis_service import RedisService
+from contextlib import asynccontextmanager
 
 app = FastAPI()
 settings = AppSettings()
+redis_pool = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global redis_pool
+    try:
+        redis_pool = RedisService.create_pool()
+    except Exception as e:
+        print(str(e))
+    yield
+    redis_pool.disconnect()
 
 
 class VideoFormat(Enum):
@@ -88,18 +103,38 @@ async def get_data_from_youtube(video_id: str):
 @app.get("/get-download-link/{video_id}")
 async def get_metadata(video_id: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
+    if redis_pool:
+        redis = RedisService(pool=redis_pool)
+        cache = await redis.get_cache(key=f"{video_id}&mp4")
+        if cache:
+            return cache.decode()
     res = await fetch_video_info(link)
+    if redis_pool:
+        await redis.set_cache(key=f"{video_id}&mp4", value=res.url, expire=120)
     return res.url
 
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
 async def get_metadata_with_fmt(video_id: str, fmt_video: str):
     link = f"https://www.youtube.com/watch?v={video_id}"
+    if redis_pool:
+        redis = RedisService(pool=redis_pool)
+        cache = await redis.get_cache(key=f"{video_id}&{fmt_video}")
+        if cache:
+            return json.loads(cache.decode())
+
     res = await fetch_video_info(link, fmt_video)
-    return {
+    result = {
         "duration": res._monostate.duration,
         "filesize_mb": res._filesize_mb,
         "title": res._monostate.title,
         "url": res.url,
         "resolution": res.resolution
     }
+    if redis_pool:
+        await redis.set_cache(key=f"{video_id}&{fmt_video}", value=json.dumps(result), expire=120)
+    return result
+
+
+
+
