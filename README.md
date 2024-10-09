@@ -8,11 +8,6 @@ Clone repo
 git clone <path_repo>
 ```
 
-Install packages:
-```
-pip install -r requirements.txt
-```
-
 Create .env file and insert data
 ```
 YOUTUBE_VIDEO_ID_PATTERN="[0-9A-Za-z_-]{11}"
@@ -20,12 +15,14 @@ YOUTUBE_API_KEY="<YOUTUBE_API_KEY>"
 YOUTUBE_API_URL="<YOUTUBE_API_URL>"
 REDIS_HOST=<REDIS_HOST>
 REDIS_PORT=<REDIS_PORT>
-
+REDIS_PASSWORD=<REDIS_PASSWORD>
+REDIS_USER=<REDIS_USER>
 ```
 
-Run the live server:
+
+Run the application:
 ```
-uvicorn main:app --reload
+docker-compose up -d
 ```
 
 API documentation :
