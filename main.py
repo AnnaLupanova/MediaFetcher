@@ -1,5 +1,4 @@
 import json
-
 import aiohttp.client_exceptions
 from fastapi import FastAPI, HTTPException, Path
 import aiohttp
@@ -21,6 +20,7 @@ app = FastAPI()
 settings = AppSettings()
 redis_pool = None
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global redis_pool
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 class VideoFormat(Enum):
     MP4 = "mp4"
     WEBM = "webm"
-    MKV = "mkv" 
+    MKV = "mkv"
 
 
 async def get_video_data(video_id: str) -> dict:
@@ -57,17 +57,17 @@ async def get_video_data(video_id: str) -> dict:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optional[Stream]:
+def get_stream(link: str, fmt: Optional[VideoFormat] = VideoFormat.MP4) -> Optional[Stream]:
     try:
         if fmt and fmt not in (format.value for format in VideoFormat):
             raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
 
-        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt)\
-                                                        .order_by("resolution").desc().first()
+        return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=fmt) \
+            .order_by("resolution").desc().first()
 
     except exceptions.VideoUnavailable:
         raise HTTPException(status_code=404, detail="Video not found")
-    except HTTPException: 
+    except HTTPException:
         raise
     except Exception as e:
         ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
@@ -75,13 +75,13 @@ def get_stream(link: str, fmt: Optional[VideoFormat]=VideoFormat.MP4) -> Optiona
         raise HTTPException(status_code=400, detail=message)
 
 
-async def fetch_video_info(link: str, fmt: Optional[str]='mp4'):
+async def fetch_video_info(link: str, fmt: Optional[str] = 'mp4'):
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor() as pool:
-        return await loop.run_in_executor(pool,get_stream, link, fmt)
-    
+        return await loop.run_in_executor(pool, get_stream, link, fmt)
 
-def is_valid(pattern: str,id: str) -> bool:
+
+def is_valid(pattern: str, id: str) -> bool:
     regex = re.compile(pattern)
     results = regex.match(id)
     if not results:
@@ -91,6 +91,19 @@ def is_valid(pattern: str,id: str) -> bool:
 
 @app.get("/get-video-data/{video_id}")
 async def get_data_from_youtube(video_id: str):
+    """
+        Retrieve stream URL by videoId.
+        This endpoint fetches the streaming url for a specified YouTube video.
+        Used YouTube API v3
+
+        - Args:
+            video_id (str): A valid YouTube video ID.
+        - Returns:
+            dict: A dictionary containing the information about video
+        - Example:
+            GET /get-download-link/dQw4w9WgXcQ
+    """
+
     pattern = settings.youtube_video_id_pattern
     if not is_valid(pattern, video_id):
         raise HTTPException(status_code=400, detail=f"Video id don't match pattern={pattern}")
@@ -102,6 +115,18 @@ async def get_data_from_youtube(video_id: str):
 
 @app.get("/get-download-link/{video_id}")
 async def get_metadata(video_id: str):
+    """
+    Retrieve stream URL by videoId.
+    This endpoint fetches the streaming url for a specified YouTube video
+
+    - Args:
+        video_id (str): A valid YouTube video ID.
+    - Returns:
+        url (str): The direct stream URL for downloading the video.
+    - Example:
+        GET /get-download-link/dQw4w9WgXcQ
+    """
+
     link = f"https://www.youtube.com/watch?v={video_id}"
     if redis_pool:
         redis = RedisService(pool=redis_pool)
@@ -116,6 +141,26 @@ async def get_metadata(video_id: str):
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
 async def get_metadata_with_fmt(video_id: str, fmt_video: str):
+    """
+    Retrieve stream URL by videoId and format video.
+    This endpoint fetches the streaming information for a specified YouTube video,
+    including the duration, file size, title, download URL, and resolution based on
+    the provided video ID and format.
+
+    - Args:
+        video_id (str): A valid YouTube video ID.
+        fmt_video (str): Desired format for the video (e.g., 'mp4', 'mov').
+    - Returns:
+        dict: A dictionary containing the following information:
+            - duration (float): The duration of the video in seconds.
+            - filesize_mb (float): The size of the video file in megabytes.
+            - title (str): The title of the video.
+            - url (str): The direct stream URL for downloading the video.
+            - resolution (str): The resolution of the video.
+    - Example:
+        GET /get-download-link/dQw4w9WgXcQ/mp4
+    """
+
     link = f"https://www.youtube.com/watch?v={video_id}"
     if redis_pool:
         redis = RedisService(pool=redis_pool)
@@ -134,7 +179,3 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: str):
     if redis_pool:
         await redis.set_cache(key=f"{video_id}&{fmt_video}", value=json.dumps(result), expire=120)
     return result
-
-
-
-
