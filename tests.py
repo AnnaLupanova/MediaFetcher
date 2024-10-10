@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from main import app, get_metadata_with_fmt, get_metadata
+from main import app, get_metadata_with_fmt, get_metadata,get_redis_service
 import asyncio
 import pytest
 import pytest_asyncio
@@ -10,10 +10,17 @@ from asyncmock import AsyncMock
 
 client = TestClient(app)
 
+
 @pytest.fixture
 def mock_redis_service():
-    with patch("main.RedisService") as mock:
+    with patch("main.RedisService", new_callable=AsyncMock) as mock:
         yield mock
+
+
+@pytest.fixture
+def set_dependencies(mock_redis_service):
+    app.dependency_overrides[get_redis_service] = lambda: mock_redis_service
+
 
 @pytest.fixture
 def mock_fetch_video_info():
@@ -24,6 +31,7 @@ def mock_fetch_video_info():
 @pytest.mark.asyncio
 async def test_get_link():
     response = client.get("/get-download-link/7t2alSnE2-I")
+    print(response)
     assert response.status_code == 200
 
 
@@ -51,9 +59,11 @@ async def test_get_video_not_found():
 @pytest.mark.asyncio
 async def test_get_download_link_with_cache_success(mock_redis_service):
     mock_redis = mock_redis_service.return_value
+    print(mock_redis)
     mock_redis.get_cache = AsyncMock(return_value=b"http://example.com/7t2alSnE2-I")
-    response = client.get("/get-download-link/7t2alSnE2-I")
-    assert response.json() == "http://example.com/7t2alSnE2-I"
+    response = await get_metadata("7t2alSnE2-I")
+    assert response == "http://example.com/7t2alSnE2-I"
+   # mock_fetch_video_info.assert_called_once_with("7t2alSnE2-I")
     # mock_redis.get_cache.assert_called_once()
 
 
