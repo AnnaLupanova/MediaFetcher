@@ -9,7 +9,7 @@ client = TestClient(app)
 
 @pytest.fixture
 def mock_redis_service():
-    with patch("main.RedisService", new_callable=AsyncMock) as mock:
+    with patch("service.redis_service.RedisService", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -22,7 +22,7 @@ def set_dependencies(mock_redis_service):
 
 @pytest.fixture
 def mock_fetch_video_info():
-    with patch("main.fetch_video_info", new_callable=AsyncMock) as mock:
+    with patch("main.YoutubeService.fetch_video_info", new_callable=AsyncMock) as mock:
         yield mock
 
 
