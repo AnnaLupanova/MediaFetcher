@@ -8,3 +8,6 @@ httpx
 pytest-mock
 pydantic
 pydantic-settings
+redis
+fakeredis
+asyncmock
