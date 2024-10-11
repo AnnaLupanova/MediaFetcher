@@ -79,6 +79,19 @@ def is_valid(pattern: str, id: str) -> bool:
 
 @app.get("/get-video-data/{video_id}")
 async def get_data_from_youtube(video_id: str):
+    """
+        Retrieve stream URL by videoId.
+        This endpoint fetches the streaming url for a specified YouTube video.
+        Used YouTube API v3
+
+        - Args:
+            video_id (str): A valid YouTube video ID.
+        - Returns:
+            dict: A dictionary containing the information about video
+        - Example:
+            GET /get-download-link/dQw4w9WgXcQ
+    """
+
     pattern = settings.youtube_video_id_pattern
     if not is_valid(pattern, video_id):
         raise HTTPException(status_code=400, detail=f"Video id don't match pattern={pattern}")
@@ -93,7 +106,19 @@ async def get_redis_service() -> RedisService:
 
 
 @app.get("/get-download-link/{video_id}")
-async def get_metadata(video_id: str, redis=Depends(get_redis_service)):
+async def get_metadata(video_id: str):
+    """
+    Retrieve stream URL by videoId.
+    This endpoint fetches the streaming url for a specified YouTube video
+
+    - Args:
+        video_id (str): A valid YouTube video ID.
+    - Returns:
+        url (str): The direct stream URL for downloading the video.
+    - Example:
+        GET /get-download-link/dQw4w9WgXcQ
+    """
+
     link = f"https://www.youtube.com/watch?v={video_id}"
     cache = await redis.get_cache(key=f"{video_id}")
     if cache:
@@ -104,7 +129,27 @@ async def get_metadata(video_id: str, redis=Depends(get_redis_service)):
 
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
-async def get_metadata_with_fmt(video_id: str, fmt_video: str, redis=Depends(get_redis_service)):
+async def get_metadata_with_fmt(video_id: str, fmt_video: str):
+    """
+    Retrieve stream URL by videoId and format video.
+    This endpoint fetches the streaming information for a specified YouTube video,
+    including the duration, file size, title, download URL, and resolution based on
+    the provided video ID and format.
+
+    - Args:
+        video_id (str): A valid YouTube video ID.
+        fmt_video (str): Desired format for the video (e.g., 'mp4', 'mov').
+    - Returns:
+        dict: A dictionary containing the following information:
+            - duration (float): The duration of the video in seconds.
+            - filesize_mb (float): The size of the video file in megabytes.
+            - title (str): The title of the video.
+            - url (str): The direct stream URL for downloading the video.
+            - resolution (str): The resolution of the video.
+    - Example:
+        GET /get-download-link/dQw4w9WgXcQ/mp4
+    """
+
     link = f"https://www.youtube.com/watch?v={video_id}"
     cache = await redis.get_cache(key=f"{video_id}&{fmt_video}")
     if cache:
