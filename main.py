@@ -1,7 +1,6 @@
 import json
 import aiohttp.client_exceptions
-import redis
-from fastapi import FastAPI, HTTPException, Path, Depends
+from fastapi import FastAPI, HTTPException, Depends
 import aiohttp
 import asyncio
 from typing import Optional
@@ -13,7 +12,6 @@ import re
 from enum import Enum
 from settings import AppSettings
 from service.redis_service import RedisService
-from contextlib import asynccontextmanager
 from logger import logger
 
 app = FastAPI()
@@ -35,7 +33,7 @@ async def get_video_data(video_id: str) -> dict:
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(settings.youtube_api_url, params=params) as response:
+            async with session.get(settings.youtube_api_url, params=params, ssl=False) as response:
                 result = await response.json()
                 if response.status != 200:
                     raise HTTPException(status_code=response.status, detail=result["error"]["message"])
