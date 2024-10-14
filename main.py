@@ -1,11 +1,13 @@
 import json
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 import re
 from settings import AppSettings
 from service.redis_service import get_redis_service
 from logger import logger
 from service.youtube_service import YoutubeService, VideoFormat
+from service.instagram_service import InstagramService
 from typing import Optional, Annotated
+from enum import Enum
 
 app = FastAPI()
 settings = AppSettings()
@@ -102,3 +104,21 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFo
     }
     await redis.set_cache(key=f"{video_id}&{fmt_video}", value=json.dumps(result), expire=120)
     return result
+
+
+class Source(Enum):
+    youtube = "youtube", YoutubeService
+    instagram = "instagram", InstagramService
+
+    def __init__(self, value, source_class):
+        self._value_ = value
+        self.source_class = source_class
+
+@app.get("/get-link/")
+async def get_link_by_source(source: Source, video_id: str):
+    service = source.source_class(video_id)
+    res = await service.fetch_video_info()
+    return res
+
+
+
