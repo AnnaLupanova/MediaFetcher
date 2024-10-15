@@ -12,3 +12,8 @@ redis
 fakeredis
 asyncmock
 instaloader
+python-multipart
+passlib[bcrypt]
+bcrypt
+PyJWT
+python-jose

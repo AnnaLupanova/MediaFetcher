@@ -1,24 +1,25 @@
 import json
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, status
 import re
 from settings import AppSettings
 from service.redis_service import get_redis_service
 from logger import logger
 from service.youtube_service import YoutubeService, VideoFormat
-from service.instagram_service import InstagramService
 from typing import Optional, Annotated
-from enum import Enum
+from fastapi.security import OAuth2PasswordRequestForm
+from models.user import User
+from auth import (
+    verification, oauth_scheme, create_access_token,
+    verify_password,create_refresh_token,
+    RoleChecker, get_current_user)
+from models.token import Token
+from utils import is_valid, Source
+from database import fake_users_db
+
+
 
 app = FastAPI()
 settings = AppSettings()
-
-
-def is_valid(pattern: str, id: str) -> bool:
-    regex = re.compile(pattern)
-    results = regex.match(id)
-    if not results:
-        return False
-    return True
 
 
 @app.get("/get-video-data/{video_id}")
@@ -106,14 +107,6 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFo
     return result
 
 
-class Source(Enum):
-    youtube = "youtube", YoutubeService
-    instagram = "instagram", InstagramService
-
-    def __init__(self, value, source_class):
-        self._value_ = value
-        self.source_class = source_class
-
 @app.get("/get-link/")
 async def get_link_by_source(source: Source, video_id: str):
     service = source.source_class(video_id)
@@ -121,4 +114,46 @@ async def get_link_by_source(source: Source, video_id: str):
     return res
 
 
+@app.get("/auth")
+def work_with_HTTPBasic(verification=Depends(verification)):
+    if verification:
+        return "Hello"
 
+
+@app.post("/token")
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
+    user = User.get_user(fake_users_db, form_data.username)
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return Token(access_token=create_access_token(data={"name": user.username, "role": user.role}),
+                 refresh_token=create_refresh_token(data={"name": user.username, "role": user.role})
+                 )
+
+@app.get("/auth1")
+async def work_with_oauth2(token: str = Depends(oauth_scheme)) -> Optional[User]:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        user = User.get_user(fake_users_db, token)
+    except Exception:
+        raise credentials_exception
+    return user
+
+
+@app.get("/auth2")
+async def work_with_jwt(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    return [{"item_id": "Foo", "owner": current_user.username}]
+
+
+@app.get("/auth3")
+def get_data_according_role(_: Annotated[bool, Depends(RoleChecker(allowed_roles=["admin", "manager"]))]):
+  return {"data": "This is important data"}
