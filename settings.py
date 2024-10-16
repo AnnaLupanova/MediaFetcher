@@ -8,7 +8,11 @@ class AppSettings(BaseSettings):
     youtube_api_url: str = ""
     redis_host: str = "localhost"
     redis_port: int = 6379
-    jwt_secret_key: str
-    jwt_refresh_key: str
+    jwt_secret_key: str = ""
+    jwt_refresh_key: str = ""
+    psql_host: str = "localhost"
+    psql_port: int = 5432
+    psql_user: str = ""
+    psql_password: str = ""
 
 settings = AppSettings()

@@ -6,8 +6,10 @@ from settings import settings
 from passlib.context import CryptContext
 from models.user import User
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, OAuth2PasswordBearer
-from database import fake_users_db
-from models.token import TokenPayload
+from schemas.token import TokenPayload
+from utils import get_user
+from database import AsyncSessionLocal, engine, Base
+from sqlalchemy.ext.asyncio import AsyncSession
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
@@ -16,6 +18,10 @@ ALGORITHM = "HS256"
 securityBasic = HTTPBasic()
 oauth_scheme = OAuth2PasswordBearer(tokenUrl="token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 def get_hashed_password(password: str) -> str:
@@ -47,10 +53,10 @@ def create_refresh_token(data: Union[str, Any], expires_delta: int = None) -> st
     return encoded_jwt
 
 
-def verification(creds: HTTPBasicCredentials = Depends(securityBasic)):
+async def verification(creds: HTTPBasicCredentials = Depends(securityBasic), db: AsyncSession = Depends(get_db)):
     username = creds.username
     password = creds.password
-    user = User.get_user(fake_users_db, username)
+    user = await get_user(username, db)
     if user and User.verify_password(password, user.password_hash):
         return True
     else:
@@ -61,7 +67,7 @@ def verification(creds: HTTPBasicCredentials = Depends(securityBasic)):
         )
 
 
-async def get_current_user(token: str = Depends(oauth_scheme)) -> User:
+async def get_current_user(token: str = Depends(oauth_scheme), db: AsyncSession = Depends(get_db)) -> User:
     try:
         payload = jwt.decode(
             token, settings.jwt_secret_key, algorithms=[ALGORITHM]
@@ -80,7 +86,7 @@ async def get_current_user(token: str = Depends(oauth_scheme)) -> User:
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = User.get_user(fake_users_db, token_data.sub)
+    user = await get_user(token_data.sub, db)
 
     if user is None:
         raise HTTPException(
@@ -95,7 +101,7 @@ class RoleChecker:
         self.allowed_roles = allowed_roles
 
     def __call__(self, user: Annotated[User, Depends(get_current_user)]):
-        if user.role in self.allowed_roles:
+        if user.role.name in self.allowed_roles:
             return True
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

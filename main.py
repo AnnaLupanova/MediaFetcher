@@ -7,19 +7,43 @@ from logger import logger
 from service.youtube_service import YoutubeService, VideoFormat
 from typing import Optional, Annotated
 from fastapi.security import OAuth2PasswordRequestForm
-from models.user import User
+from models.user import User, UserRole
 from auth import (
     verification, oauth_scheme, create_access_token,
     verify_password,create_refresh_token,
     RoleChecker, get_current_user)
-from models.token import Token
-from utils import is_valid, Source
-from database import fake_users_db
-
+from schemas.token import Token
+from schemas.user import UserCreate, UserResponse
+from utils import create_user
+from utils import is_valid, Source, get_user
+from database import AsyncSessionLocal, engine, Base
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 app = FastAPI()
 settings = AppSettings()
+
+async def init_data():
+    INIT_AUTHORS = [
+        {"name": "admin", "is_admin": True},
+        {"name": "user", "is_admin": False},
+    ]
+
+    async with AsyncSessionLocal() as session:
+        for role in INIT_AUTHORS:
+            new_role = UserRole(**role)
+            session.add(new_role)
+        await session.commit()
+
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await init_data()
+
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 @app.get("/get-video-data/{video_id}")
@@ -121,27 +145,40 @@ def work_with_HTTPBasic(verification=Depends(verification)):
 
 
 @app.post("/token")
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
-    user = User.get_user(fake_users_db, form_data.username)
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: AsyncSession = Depends(get_db)) -> Token:
+    user = await get_user(form_data.username, db)
+
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return Token(access_token=create_access_token(data={"name": user.username, "role": user.role}),
-                 refresh_token=create_refresh_token(data={"name": user.username, "role": user.role})
+    return Token(access_token=create_access_token(data={"name": user.username, "role": user.role.name}),
+                 refresh_token=create_refresh_token(data={"name": user.username, "role": user.role.name})
                  )
 
+
+@app.post("/register", response_model=UserResponse)
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    existing_user = await get_user(user.username, db)
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Username already registered")
+
+    new_user = await create_user(db, user)
+    return new_user
+
+
 @app.get("/auth1")
-async def work_with_oauth2(token: str = Depends(oauth_scheme)) -> Optional[User]:
+async def work_with_oauth2(token: str = Depends(oauth_scheme), db: AsyncSession = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        user = User.get_user(fake_users_db, token)
+        user = await get_user(token, db)
     except Exception:
         raise credentials_exception
     return user
@@ -157,3 +194,17 @@ async def work_with_jwt(
 @app.get("/auth3")
 def get_data_according_role(_: Annotated[bool, Depends(RoleChecker(allowed_roles=["admin", "manager"]))]):
   return {"data": "This is important data"}
+
+
+CLIENT_ID = "376730605489-qjkfmt50stv2ca4jq4aapfcsb92bl8n9.apps.googleusercontent.com"
+CLIENT_SECRET = "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"
+GOOGLE_REDIRECT_URI = "localhost:8000/callback/google"
+
+
+from authlib.integrations.starlette_client import OAuth
+oauth = OAuth()
+@app.get("/login/google")
+async def login_google():
+    return {
+        "url": f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline"
+    }

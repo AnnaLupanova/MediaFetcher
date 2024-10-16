@@ -1,22 +1,12 @@
+from sqlalchemy.ext.asyncio import create_async_engine
 from passlib.context import CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from settings import settings
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-
-fake_users_db = {
-    "admin": {
-        "username": "admin",
-        "password_hash": pwd_context.hash("admin"),
-        "role": "admin"
-    },
-    "user": {
-        "username": "user",
-        "password_hash": pwd_context.hash("user"),
-        "role": "user"
-    },
-
-    "manager": {
-        "username": "manager",
-        "password_hash": pwd_context.hash("manager"),
-        "role": "manager"
-    }
-}
+DATABASE_URL = f"postgresql+asyncpg://{settings.psql_user}:{settings.psql_password}@{settings.psql_host}:{settings.psql_port}/content_api"
+engine = create_async_engine(DATABASE_URL, echo=True)
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+Base = declarative_base()

@@ -17,3 +17,6 @@ passlib[bcrypt]
 bcrypt
 PyJWT
 python-jose
+sqlalchemy[asyncio]
+asyncpg
+alembic
