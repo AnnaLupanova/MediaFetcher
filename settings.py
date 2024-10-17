@@ -14,5 +14,8 @@ class AppSettings(BaseSettings):
     psql_port: int = 5432
     psql_user: str = ""
     psql_password: str = ""
+    google_client_id: str = "",
+    google_client_secret: str = "",
+    secret_key: str = ""
 
 settings = AppSettings()

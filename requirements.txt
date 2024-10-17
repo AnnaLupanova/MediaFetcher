@@ -20,3 +20,5 @@ python-jose
 sqlalchemy[asyncio]
 asyncpg
 alembic
+authlib
+itsdangerous

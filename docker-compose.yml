@@ -12,17 +12,20 @@ services:
   db:
     image: postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: adminqwerty
-      POSTGRES_DB: content_api
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=content_api
     ports:
       - "5432:5432"
 
-#  api:
-#    build: .
-#    ports:
-#      - "8000:8000"
-#    depends_on:
-#      redis:
-#        condition: service_started
-#        restart: true
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_started
+        restart: true
+      db:
+        condition: service_started
+        restart: true

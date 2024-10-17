@@ -18,10 +18,35 @@ from utils import create_user
 from utils import is_valid, Source, get_user
 from database import AsyncSessionLocal, engine, Base
 from sqlalchemy.ext.asyncio import AsyncSession
+from authlib.integrations.starlette_client import OAuth
+from fastapi.responses import RedirectResponse
+from starlette.config import Config
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi import Request
 
 
 app = FastAPI()
 settings = AppSettings()
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
+config_data = {'GOOGLE_CLIENT_ID': settings.google_client_id, 'GOOGLE_CLIENT_SECRET': settings.google_client_secret}
+starlette_config = Config(environ=config_data)
+oauth = OAuth(starlette_config)
+oauth.register(
+    name='google',
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'},
+)
+
+@app.get('/')
+def public(request: Request):
+    user = request.session.get('user')
+    if user:
+        name = user.get('name')
+        return f"Hello {name}"
+    return {"detail": "Not authenticated"}
+
+
 
 async def init_data():
     INIT_AUTHORS = [
@@ -138,7 +163,7 @@ async def get_link_by_source(source: Source, video_id: str):
     return res
 
 
-@app.get("/auth")
+@app.get("/auth/basic")
 def work_with_HTTPBasic(verification=Depends(verification)):
     if verification:
         return "Hello"
@@ -196,15 +221,25 @@ def get_data_according_role(_: Annotated[bool, Depends(RoleChecker(allowed_roles
   return {"data": "This is important data"}
 
 
-CLIENT_ID = "376730605489-qjkfmt50stv2ca4jq4aapfcsb92bl8n9.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
-GOOGLE_REDIRECT_URI = "localhost:8000/callback/google"
+@app.get('/login/google')
+async def login(request: Request):
+    redirect_uri = request.url_for('auth')
+    return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
-from authlib.integrations.starlette_client import OAuth
-oauth = OAuth()
-@app.get("/login/google")
-async def login_google():
-    return {
-        "url": f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline"
-    }
+@app.get('/auth')
+async def auth(request: Request):
+    try:
+        access_token = await oauth.google.authorize_access_token(request)
+    except Exception:
+        return RedirectResponse(url='/')
+    userinfo = access_token['userinfo']
+    request.session['user'] = dict(userinfo)
+    return RedirectResponse(url='/')
+
+@app.get('/logout')
+async def logout(request: Request):
+    request.session.pop('user', None)
+    return RedirectResponse(url='/')
+
+
