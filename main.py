@@ -8,17 +8,20 @@ from service.youtube_service import YoutubeService, VideoFormat
 from service.instagram_service import InstagramService
 from typing import Optional, Annotated
 from enum import Enum
+from utils import is_valid
+
 
 app = FastAPI()
 settings = AppSettings()
 
 
-def is_valid(pattern: str, id: str) -> bool:
-    regex = re.compile(pattern)
-    results = regex.match(id)
-    if not results:
-        return False
-    return True
+class Source(Enum):
+    youtube = "youtube", YoutubeService
+    instagram = "instagram", InstagramService
+
+    def __init__(self, value, source_class):
+        self._value_ = value
+        self.source_class = source_class
 
 
 @app.get("/get-video-data/{video_id}")
@@ -105,17 +108,8 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFo
     await redis.set_cache(key=f"{video_id}&{fmt_video}", value=json.dumps(result), expire=120)
     return result
 
-
-class Source(Enum):
-    youtube = "youtube", YoutubeService
-    instagram = "instagram", InstagramService
-
-    def __init__(self, value, source_class):
-        self._value_ = value
-        self.source_class = source_class
-
-@app.get("/get-link/")
-async def get_link_by_source(source: Source, video_id: str):
+@app.get("/get-content-data/")
+async def get_content_by_source(source: Source, video_id: str):
     service = source.source_class(video_id)
     res = await service.fetch_video_info()
     return res
