@@ -14,8 +14,7 @@ from auth import (
     RoleChecker, get_current_user)
 from schemas.token import Token
 from schemas.user import UserCreate, UserResponse
-from utils import create_user
-from utils import is_valid, Source, get_user
+from utils import is_valid, Source, get_user, get_role, create_user
 from database import AsyncSessionLocal, engine, Base
 from sqlalchemy.ext.asyncio import AsyncSession
 from authlib.integrations.starlette_client import OAuth
@@ -38,6 +37,34 @@ oauth.register(
     client_kwargs={'scope': 'openid email profile'},
 )
 
+
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+async def init_roles():
+    INIT_ROLES = [
+        {"name": "admin", "is_admin": True},
+        {"name": "user", "is_admin": False},
+        {"name": "manager", "is_admin": True}
+    ]
+
+    async with AsyncSessionLocal() as session:
+        for role in INIT_ROLES:
+            existing_role = await get_role(role["name"], session)
+            if not existing_role:
+                new_role = UserRole(**role)
+                session.add(new_role)
+        await session.commit()
+
+
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await init_roles()
+
 @app.get('/')
 def public(request: Request):
     user = request.session.get('user')
@@ -45,30 +72,6 @@ def public(request: Request):
         name = user.get('name')
         return f"Hello {name}"
     return {"detail": "Not authenticated"}
-
-
-
-async def init_data():
-    INIT_AUTHORS = [
-        {"name": "admin", "is_admin": True},
-        {"name": "user", "is_admin": False},
-    ]
-
-    async with AsyncSessionLocal() as session:
-        for role in INIT_AUTHORS:
-            new_role = UserRole(**role)
-            session.add(new_role)
-        await session.commit()
-
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await init_data()
-
-async def get_db() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        yield session
 
 
 @app.get("/get-video-data/{video_id}")

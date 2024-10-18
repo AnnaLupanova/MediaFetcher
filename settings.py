@@ -19,3 +19,5 @@ class AppSettings(BaseSettings):
     secret_key: str = ""
 
 settings = AppSettings()
+DATABASE_URL = f"postgresql+asyncpg://{settings.psql_user}:{settings.psql_password}@{settings.psql_host}:{settings.psql_port}/content_api"
+

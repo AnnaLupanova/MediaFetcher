@@ -17,6 +17,8 @@ services:
       - POSTGRES_DB=content_api
     ports:
       - "5432:5432"
+    volumes:
+      - /desktop/pgdata:/var/lib/postgresql/data
 
   api:
     build: .

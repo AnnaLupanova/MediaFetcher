@@ -17,6 +17,11 @@ async def get_user(user_name: str, db: AsyncSession) -> User:
     return result.scalars().first()
 
 
+async def get_role(name: str, db: AsyncSession) -> UserRole:
+    print(db)
+    result = await db.execute(select(UserRole).filter(UserRole.name == name))
+    return result.scalars().first()
+
 async def create_user(db: AsyncSession, user: UserCreate):
     role_result = await db.execute(select(UserRole).filter(UserRole.name == user.role))
     role = role_result.scalars().first()
