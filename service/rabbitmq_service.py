@@ -1,14 +1,11 @@
 import json
-import pika
 import aio_pika
-from settings import settings
-RABBITMQ_URL = "localhost"
+from settings import settings, RABBITMQ_URL
 
-RABBITMQ_URL = "amqp://localhost/"
-QUEUE_NAME = "email_queue"
 
 async def get_rabbit_connection():
     return await aio_pika.connect_robust(RABBITMQ_URL)
+
 
 async def publish_message(url: str, user_email: str):
     connection = await get_rabbit_connection()
@@ -21,5 +18,5 @@ async def publish_message(url: str, user_email: str):
         }
         await channel.default_exchange.publish(
             aio_pika.Message(body=json.dumps(message).encode()),
-            routing_key=QUEUE_NAME,
+            routing_key="email_queue",
         )

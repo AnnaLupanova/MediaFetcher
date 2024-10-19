@@ -29,7 +29,6 @@ settings = AppSettings()
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
 
-
 config_data = {'GOOGLE_CLIENT_ID': settings.google_client_id, 'GOOGLE_CLIENT_SECRET': settings.google_client_secret}
 starlette_config = Config(environ=config_data)
 oauth = OAuth(starlette_config)
@@ -70,10 +69,9 @@ async def startup():
 @app.get('/')
 def public(request: Request):
     user = request.session.get('user')
-    token = request.session.get('token')
     if user:
         name = user.get('name')
-        return  token
+        return  name
     return {"detail": "Not authenticated"}
 
 
@@ -98,7 +96,6 @@ async def get_data_from_youtube(video_id: str):
     res = await YoutubeService(video_id).get_video_data()
     if 'items' not in res or not res['items']:
         raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found")
-
     return res['items'][0]
 
 from service.rabbitmq_service import publish_message
@@ -122,16 +119,15 @@ async def get_metadata(request: Request, video_id: str, redis=Depends(get_redis_
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     cache = await redis.get_cache(key=f"{video_id}")
     if cache:
-        await publish_message(cache.decode(), "annalupanova1999@gmail.com")
+        await publish_message(cache.decode(), user["email"])
         return cache.decode()
 
     res = await YoutubeService(video_id).fetch_video_info()
     await redis.set_cache(key=f"{video_id}", value=res.url, expire=120)
     await publish_message(res.url, "annalupanova1999@gmail.com")
-    return res.url
+    return {"detail": "Link for download video was sent by email."}
 
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
