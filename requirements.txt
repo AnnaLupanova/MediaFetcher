@@ -22,3 +22,5 @@ asyncpg
 alembic
 authlib
 itsdangerous
+pika
+aio_pika

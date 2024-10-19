@@ -28,6 +28,8 @@ app = FastAPI()
 settings = AppSettings()
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
+
+
 config_data = {'GOOGLE_CLIENT_ID': settings.google_client_id, 'GOOGLE_CLIENT_SECRET': settings.google_client_secret}
 starlette_config = Config(environ=config_data)
 oauth = OAuth(starlette_config)
@@ -68,9 +70,10 @@ async def startup():
 @app.get('/')
 def public(request: Request):
     user = request.session.get('user')
+    token = request.session.get('token')
     if user:
         name = user.get('name')
-        return f"Hello {name}"
+        return  token
     return {"detail": "Not authenticated"}
 
 
@@ -95,11 +98,12 @@ async def get_data_from_youtube(video_id: str):
     res = await YoutubeService(video_id).get_video_data()
     if 'items' not in res or not res['items']:
         raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found")
+
     return res['items'][0]
 
-
+from service.rabbitmq_service import publish_message
 @app.get("/get-download-link/{video_id}")
-async def get_metadata(video_id: str, redis=Depends(get_redis_service)):
+async def get_metadata(request: Request, video_id: str, redis=Depends(get_redis_service)):
     """
     Retrieve stream URL by videoId.
     This endpoint fetches the streaming url for a specified YouTube video
@@ -111,12 +115,22 @@ async def get_metadata(video_id: str, redis=Depends(get_redis_service)):
     - Example:
         GET /get-download-link/dQw4w9WgXcQ
     """
+    user = request.session.get('user')
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     cache = await redis.get_cache(key=f"{video_id}")
     if cache:
+        await publish_message(cache.decode(), "annalupanova1999@gmail.com")
         return cache.decode()
+
     res = await YoutubeService(video_id).fetch_video_info()
     await redis.set_cache(key=f"{video_id}", value=res.url, expire=120)
+    await publish_message(res.url, "annalupanova1999@gmail.com")
     return res.url
 
 
@@ -239,6 +253,7 @@ async def auth(request: Request):
     userinfo = access_token['userinfo']
     request.session['user'] = dict(userinfo)
     return RedirectResponse(url='/')
+
 
 @app.get('/logout')
 async def logout(request: Request):
