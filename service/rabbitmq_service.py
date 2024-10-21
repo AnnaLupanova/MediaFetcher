@@ -14,7 +14,8 @@ async def publish_message(url: str, user_email: str):
         message = {
             "recipient": user_email,
             "subject": "Ссылка на скачивание видео",
-            "body": f"Ссылка на скачивание вашего видео: {url}"
+            "body": f"Ссылка на скачивание вашего видео: {url}",
+            "attempts": 1
         }
         await channel.default_exchange.publish(
             aio_pika.Message(body=json.dumps(message).encode()),

@@ -122,7 +122,7 @@ async def get_metadata(request: Request, video_id: str, redis=Depends(get_redis_
     cache = await redis.get_cache(key=f"{video_id}")
     if cache:
         await publish_message(cache.decode(), user["email"])
-        return cache.decode()
+        return {"detail": "Link for download video was sent by email."}
 
     res = await YoutubeService(video_id).fetch_video_info()
     await redis.set_cache(key=f"{video_id}", value=res.url, expire=120)
