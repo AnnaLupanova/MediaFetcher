@@ -10,10 +10,6 @@ class AppSettings(BaseSettings):
     redis_port: int = 6379
     jwt_secret_key: str = ""
     jwt_refresh_key: str = ""
-    psql_host: str = "localhost"
-    psql_port: int = 5432
-    psql_user: str = ""
-    psql_password: str = ""
     google_client_id: str = "",
     google_client_secret: str = "",
     secret_key: str = ""
@@ -23,9 +19,11 @@ class AppSettings(BaseSettings):
     gmail_password: str = ""
     rabbitmq_host: str = "localhost"
     rabbitmq_port: int
+    celery_broker_url: str = "localhost"
+    celery_result_backend: str = "localhost"
 
 settings = AppSettings()
 
 RABBITMQ_URL = f"amqp://{settings.rabbitmq_host}:{settings.rabbitmq_port}/"
-DATABASE_URL = f"postgresql+asyncpg://{settings.psql_user}:{settings.psql_password}@{settings.psql_host}:{settings.psql_port}/content_api"
-
+# DATABASE_URL = f"postgresql+asyncpg://{settings.psql_user}:{settings.psql_password}@{settings.psql_host}:{settings.psql_port}/content_api"
+# DATABASE_URL = "postgresql://postgres:postgres@db:5432/content_api"

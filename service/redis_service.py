@@ -1,8 +1,12 @@
+import os
+
 import redis.asyncio as redis
-from logger import logger
+from logger import get_logger
 from settings import settings
 from typing import Optional
 
+
+logger = get_logger('api_logger.log')
 
 class RedisService:
     def __init__(self, pool) -> None:
@@ -23,7 +27,8 @@ class RedisService:
     @classmethod
     def create_pool(cls) -> Optional[redis.connection.ConnectionPool]:
         try:
-            return redis.ConnectionPool(host=settings.redis_host, port=settings.redis_port, db=0)
+            REDIS_URL = os.getenv("REDIS_URL")
+            return redis.from_url(REDIS_URL, db=0)
         except Exception as e:
             logger.error(f'Have error in create_pool(), reason <{str(e)}>')
 

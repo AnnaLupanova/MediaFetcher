@@ -9,9 +9,11 @@ from pytubefix.cli import on_progress
 import re
 from enum import Enum
 import asyncio
-from logger import logger
+from logger import get_logger
 from settings import settings
-from logger import logger
+
+
+logger = get_logger('api_logger.log')
 
 class VideoFormat(Enum):
     MP4 = "mp4"

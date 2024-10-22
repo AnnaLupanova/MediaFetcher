@@ -25,3 +25,4 @@ itsdangerous
 aiosmtplib
 pika
 aio_pika
+celery[redis]
