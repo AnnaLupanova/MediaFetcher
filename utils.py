@@ -1,13 +1,15 @@
 import re
-from enum import Enum
-from service.instagram_service import InstagramService
-from service.youtube_service import YoutubeService
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User, UserRole
 from sqlalchemy.future import select
 from schemas.user import UserCreate
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
+import abc
+from typing import Optional, Any
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -46,13 +48,16 @@ def is_valid(pattern: str, id: str) -> bool:
     return True
 
 
-class Source(Enum):
-    youtube = "youtube", YoutubeService
-    instagram = "instagram", InstagramService
+class BaseService(abc.ABC):
+    def __init__(self, content_id: str):
+        self.content_id = content_id
 
-    def __init__(self, value, source_class):
-        self._value_ = value
-        self.source_class = source_class
+    @abc.abstractmethod
+    def get_stream(self) -> Any:
+        ...
 
-
+    async def fetch_video_info(self) -> Any:
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as pool:
+            return await loop.run_in_executor(pool, self.get_stream)
 

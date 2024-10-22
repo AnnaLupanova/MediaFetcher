@@ -5,6 +5,7 @@ from settings import AppSettings
 from service.redis_service import get_redis_service
 from logger import logger
 from service.youtube_service import YoutubeService, VideoFormat
+from service.instagram_service import InstagramService
 from typing import Optional, Annotated
 from fastapi.security import OAuth2PasswordRequestForm
 from models.user import User, UserRole
@@ -14,7 +15,7 @@ from auth import (
     RoleChecker, get_current_user)
 from schemas.token import Token
 from schemas.user import UserCreate, UserResponse
-from utils import is_valid, Source, get_user, get_role, create_user
+from utils import is_valid, get_user, get_role, create_user
 from database import AsyncSessionLocal, engine, Base
 from sqlalchemy.ext.asyncio import AsyncSession
 from authlib.integrations.starlette_client import OAuth
@@ -22,7 +23,7 @@ from fastapi.responses import RedirectResponse
 from starlette.config import Config
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi import Request
-
+from enum import Enum
 
 app = FastAPI()
 settings = AppSettings()
@@ -64,6 +65,7 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await init_roles()
+
 
 @app.get('/')
 def public(request: Request):
@@ -157,6 +159,15 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFo
     }
     await redis.set_cache(key=f"{video_id}&{fmt_video}", value=json.dumps(result), expire=120)
     return result
+
+
+class Source(Enum):
+    youtube = "youtube", YoutubeService
+    instagram = "instagram", InstagramService
+
+    def __init__(self, value, source_class):
+        self._value_ = value
+        self.source_class = source_class
 
 
 @app.get("/get-link/")
