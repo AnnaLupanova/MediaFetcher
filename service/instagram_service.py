@@ -1,7 +1,6 @@
 from fastapi import HTTPException
 from typing import Optional, Annotated
 from utils import BaseService
-import asyncio
 import instaloader
 
 

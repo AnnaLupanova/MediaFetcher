@@ -8,6 +8,16 @@ class AppSettings(BaseSettings):
     youtube_api_url: str = ""
     redis_host: str = "localhost"
     redis_port: int = 6379
-
+    jwt_secret_key: str = ""
+    jwt_refresh_key: str = ""
+    psql_host: str = "localhost"
+    psql_port: int = 5432
+    psql_user: str = ""
+    psql_password: str = ""
+    google_client_id: str = "",
+    google_client_secret: str = "",
+    secret_key: str = ""
 
 settings = AppSettings()
+DATABASE_URL = f"postgresql+asyncpg://{settings.psql_user}:{settings.psql_password}@{settings.psql_host}:{settings.psql_port}/content_api"
+
