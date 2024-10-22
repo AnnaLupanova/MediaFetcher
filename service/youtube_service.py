@@ -3,7 +3,6 @@ from fastapi import HTTPException
 import aiohttp
 from typing import Optional, Annotated
 from pytubefix import Stream
-from concurrent.futures import ThreadPoolExecutor
 from pytubefix import YouTube, exceptions
 from pytubefix.cli import on_progress
 import re
@@ -12,14 +11,18 @@ import asyncio
 from logger import logger
 from settings import settings
 from logger import logger
+from utils import BaseService
+
 
 class VideoFormat(Enum):
     MP4 = "mp4"
     WEBM = "webm"
     MKV = "mkv"
 
-class YoutubeService:
+
+class YoutubeService(BaseService):
     def __init__(self, video_id: str, fmt: Annotated[str, VideoFormat] = VideoFormat.MP4.value):
+        super().__init__(video_id)
         self.video_id = video_id
         self.fmt = fmt
 
@@ -60,8 +63,3 @@ class YoutubeService:
             ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
             message = ansi_escape.sub('', str(e))
             raise HTTPException(status_code=400, detail=message)
-
-    async def fetch_video_info(self) -> Optional[Stream]:
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as pool:
-            return await loop.run_in_executor(pool, self.get_stream)

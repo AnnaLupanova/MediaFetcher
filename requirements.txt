@@ -11,3 +11,4 @@ pydantic-settings
 redis
 fakeredis
 asyncmock
+instaloader
