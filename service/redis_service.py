@@ -1,12 +1,16 @@
+import os
+
 import redis.asyncio as redis
-from logger import logger
+from logger import get_logger
 from settings import settings
 from typing import Optional
 
 
+logger = get_logger('api_logger.log')
+
 class RedisService:
-    def __init__(self, pool) -> None:
-        self._redis = redis.Redis(connection_pool=pool)
+    def __init__(self) -> None:
+        self._redis = redis.from_url(settings.redis_url, db=0)
 
     async def set_cache(self, key, value, expire) -> None:
         try:
@@ -20,16 +24,8 @@ class RedisService:
         except Exception as e:
             logger.error(f'Have error in get_cache(), reason <{str(e)}>')
 
-    @classmethod
-    def create_pool(cls) -> Optional[redis.connection.ConnectionPool]:
-        try:
-            return redis.ConnectionPool(host=settings.redis_host, port=settings.redis_port, db=0)
-        except Exception as e:
-            logger.error(f'Have error in create_pool(), reason <{str(e)}>')
 
-
-redis_pool = RedisService.create_pool()
-
+redis_pool = RedisService()
 
 async def get_redis_service() -> RedisService:
-    return RedisService(pool=redis_pool)
+    return redis_pool

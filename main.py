@@ -3,7 +3,6 @@ from fastapi import FastAPI, HTTPException, Depends, Query, status
 import re
 from settings import AppSettings
 from service.redis_service import get_redis_service
-from logger import logger
 from service.youtube_service import YoutubeService, VideoFormat
 from service.instagram_service import InstagramService
 from typing import Optional, Annotated
@@ -23,11 +22,13 @@ from fastapi.responses import RedirectResponse
 from starlette.config import Config
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi import Request
-from enum import Enum
+from celery_worker import send_email
 
+from enum import Enum
 app = FastAPI()
 settings = AppSettings()
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
 
 config_data = {'GOOGLE_CLIENT_ID': settings.google_client_id, 'GOOGLE_CLIENT_SECRET': settings.google_client_secret}
 starlette_config = Config(environ=config_data)
@@ -72,7 +73,7 @@ def public(request: Request):
     user = request.session.get('user')
     if user:
         name = user.get('name')
-        return f"Hello {name}"
+        return  name
     return {"detail": "Not authenticated"}
 
 
@@ -99,9 +100,9 @@ async def get_data_from_youtube(video_id: str):
         raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found")
     return res['items'][0]
 
-
+from service.rabbitmq_service import publish_message
 @app.get("/get-download-link/{video_id}")
-async def get_metadata(video_id: str, redis=Depends(get_redis_service)):
+async def get_metadata(request: Request, video_id: str, redis=Depends(get_redis_service)):
     """
     Retrieve stream URL by videoId.
     This endpoint fetches the streaming url for a specified YouTube video
@@ -113,17 +114,26 @@ async def get_metadata(video_id: str, redis=Depends(get_redis_service)):
     - Example:
         GET /get-download-link/dQw4w9WgXcQ
     """
-
+    user = request.session.get('user')
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     cache = await redis.get_cache(key=f"{video_id}")
     if cache:
-        return cache.decode()
+        await publish_message(cache.decode(), user["email"])
+        return {"detail": "Link for download video was sent by email."}
+
     res = await YoutubeService(video_id).fetch_video_info()
     await redis.set_cache(key=f"{video_id}", value=res.url, expire=120)
-    return res.url
+    await publish_message(res.url,  user["email"])
+    return {"detail": "Link for download video was sent by email."}
 
 
 @app.get("/get-download-link/{video_id}/{fmt_video}")
-async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFormat],
+async def get_metadata_with_fmt(request: Request,video_id: str, fmt_video: Annotated[str, VideoFormat],
                                 redis=Depends(get_redis_service)):
     """
     Retrieve stream URL by videoId and format video.
@@ -145,9 +155,19 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFo
         GET /get-download-link/dQw4w9WgXcQ/mp4
     """
 
+    user = request.session.get('user')
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     cache = await redis.get_cache(key=f"{video_id}&{fmt_video}")
     if cache:
-        return json.loads(cache.decode())
+        result = json.loads(cache.decode())
+        send_email.delay(user["email"], "Ссылка на скачивание", result["url"])
+        return {"detail": "Link for download video was sent by email."}
 
     res = await YoutubeService(video_id, fmt_video).fetch_video_info()
     result = {
@@ -158,7 +178,8 @@ async def get_metadata_with_fmt(video_id: str, fmt_video: Annotated[str, VideoFo
         "resolution": res.resolution
     }
     await redis.set_cache(key=f"{video_id}&{fmt_video}", value=json.dumps(result), expire=120)
-    return result
+    send_email.delay(user["email"], "Ссылка на скачивание", result["url"])
+    return {"detail": "Link for download video was sent by email."}
 
 
 class Source(Enum):
@@ -250,6 +271,7 @@ async def auth(request: Request):
     userinfo = access_token['userinfo']
     request.session['user'] = dict(userinfo)
     return RedirectResponse(url='/')
+
 
 @app.get('/logout')
 async def logout(request: Request):

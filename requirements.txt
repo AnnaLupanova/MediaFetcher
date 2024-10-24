@@ -22,3 +22,7 @@ asyncpg
 alembic
 authlib
 itsdangerous
+aiosmtplib
+pika
+aio_pika
+celery[redis]

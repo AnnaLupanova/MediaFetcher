@@ -8,10 +8,13 @@ from pytubefix.cli import on_progress
 import re
 from enum import Enum
 import asyncio
-from logger import logger
+from logger import get_logger
 from settings import settings
-from logger import logger
 from utils import BaseService
+
+
+logger = get_logger('api_logger.log')
+
 
 
 class VideoFormat(Enum):
@@ -48,7 +51,6 @@ class YoutubeService(BaseService):
         try:
             link = f"https://www.youtube.com/watch?v={self.video_id}"
             if self.fmt and self.fmt not in (format.value for format in VideoFormat):
-                print()
                 raise HTTPException(status_code=400, detail=f"Unsupported format: {self.fmt}")
 
             return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=self.fmt) \

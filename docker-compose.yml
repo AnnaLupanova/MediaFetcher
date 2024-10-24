@@ -3,31 +3,77 @@ version: '3.11'
 services:
   redis:
     image: redis
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - REDIS_USER=${REDIS_USER}
     ports:
       - "6379:6379"
+    env_file:
+      - .env
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+    ports:
+      - 5672:5672
+      - 15672:15672
+    env_file:
+      - .env
 
   db:
-    image: postgres
+    image: postgres:latest
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${PSQL_USER}
+      - POSTGRES_PASSWORD=${PSQL_PASSWORD}
       - POSTGRES_DB=content_api
     ports:
       - "5432:5432"
     volumes:
-      - /desktop/pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    env_file:
+      - .env
 
   api:
     build: .
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+#      - DATABASE_URL=postgresql+asyncpg://${PSQL_USER}:${PSQL_PASSWORD}@db:5432/content_api
+#      - REDIS_URL=redis://redis:6379/0
+#      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672//
+#      - CELERY_RESULT_BACKEND=redis://${REDIS_USER}:${REDIS_PASSWORD}redis:6379/0
     depends_on:
       redis:
         condition: service_started
-        restart: true
       db:
         condition: service_started
-        restart: true
+      rabbitmq:
+        condition: service_started
+
+    env_file:
+      - .env
+
+#
+  worker:
+    build: .
+    command: celery -A celery_worker.app worker --loglevel=info -P solo
+    volumes:
+      - ./project:/usr/src/app
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    env_file:
+      - .env
+
+volumes:
+  pgdata:
