@@ -8,7 +8,7 @@ import traceback
 from logger import get_logger
 import os
 
-app = Celery(__name__, broker=os.environ['CELERY_BROKER_URL'], backend=os.environ['CELERY_RESULT_BACKEND'])
+app = Celery(__name__, broker=settings.celery_broker_url, backend=settings.celery_result_backend)
 logger = get_logger('celery_worker.log')
 
 

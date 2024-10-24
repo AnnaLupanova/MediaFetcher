@@ -3,7 +3,7 @@ from aio_pika import connect_robust, IncomingMessage, Message
 from aiosmtplib import SMTP
 from email.mime.text import MIMEText
 from email.header import Header
-from settings import settings, RABBITMQ_URL
+from settings import settings
 import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -16,7 +16,7 @@ handler = TimedRotatingFileHandler("worker.log", when='midnight', backupCount=10
 handler.setFormatter(logging.Formatter(_log_format))
 logger.addHandler(handler)
 QUEUE_NAME = "email_queue"
-DEAD_LETTER_QUEUE = "dead_letter_queue"
+DEAD_LETTER_QUEUE = "email_ttl_queue"
 MESSAGE_TTL = 1000
 DEAD_LETTER_EXCHANGE = "dlx"
 MAX_RETRIES = 3
@@ -42,7 +42,7 @@ async def send_email(to_email, subject, body):#
 
 
 async def on_message(message: IncomingMessage):
-    async with message.process():
+    async with message.process(ignore_processed=True):
         try:
             body = json.loads(message.body)
             recipient = body["recipient"]
@@ -51,18 +51,18 @@ async def on_message(message: IncomingMessage):
             await send_email(recipient, subject, body_content)
             await message.ack()
         except Exception as e:
-            print(f"Error processing message: {e}")
-            connection = await connect_robust(RABBITMQ_URL)
+            logger.error(f"Error processing message: {e}")
+            connection = await connect_robust(settings.rabbitmq_url)
             async with connection:
                 channel = await connection.channel()
                 await channel.default_exchange.publish(
-                    message, routing_key="email_ttl_queue"
+                    message, routing_key=DEAD_LETTER_QUEUE
                 )
                 logger.info("Message sent to dead letter queue")
 
 
 async def main():
-    connection = await connect_robust(RABBITMQ_URL)
+    connection = await connect_robust(settings.rabbitmq_url)
     async with connection:
         channel = await connection.channel()
         await channel.set_qos(prefetch_count=1)

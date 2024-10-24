@@ -1,10 +1,10 @@
 import json
 import aio_pika
-from settings import settings, RABBITMQ_URL
+from settings import settings
 
 
 async def get_rabbit_connection():
-    return await aio_pika.connect_robust(RABBITMQ_URL)
+    return await aio_pika.connect_robust(settings.rabbitmq_url)
 
 
 async def publish_message(url: str, user_email: str):

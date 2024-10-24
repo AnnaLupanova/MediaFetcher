@@ -20,7 +20,6 @@ async def get_user(user_name: str, db: AsyncSession) -> User:
 
 
 async def get_role(name: str, db: AsyncSession) -> UserRole:
-    print(db)
     result = await db.execute(select(UserRole).filter(UserRole.name == name))
     return result.scalars().first()
 
