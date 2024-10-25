@@ -1,7 +1,7 @@
 import aiohttp.client_exceptions
 from fastapi import HTTPException
 import aiohttp
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Dict, Any
 from pytubefix import Stream
 from pytubefix import YouTube, exceptions
 from pytubefix.cli import on_progress
@@ -12,9 +12,7 @@ from logger import get_logger
 from settings import settings
 from utils import BaseService
 
-
 logger = get_logger('api_logger.log')
-
 
 
 class VideoFormat(Enum):
@@ -24,37 +22,23 @@ class VideoFormat(Enum):
 
 
 class YoutubeService(BaseService):
-    def __init__(self, video_id: str, fmt: Annotated[str, VideoFormat] = VideoFormat.MP4.value):
-        super().__init__(video_id)
-        self.video_id = video_id
-        self.fmt = fmt
-
-    async def get_video_data(self) -> Optional[dict]:
-        params = {
-            "part": "snippet",
-            "id": self.video_id,
-            "key": settings.youtube_api_key
-        }
+    def get_stream(self) -> dict[str, Any]:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(settings.youtube_api_url, params=params, ssl=False) as response:
-                    result = await response.json()
-                    if response.status != 200:
-                        raise HTTPException(status_code=response.status, detail=result["error"]["message"])
-                    return result
-        except aiohttp.client_exceptions.ClientError:
-            raise HTTPException(status_code=503, detail="Service youtube unavailable")
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-    def get_stream(self) -> Optional[Stream]:
-        try:
-            link = f"https://www.youtube.com/watch?v={self.video_id}"
+            link = f"https://www.youtube.com/watch?v={self.content_id}"
             if self.fmt and self.fmt not in (format.value for format in VideoFormat):
                 raise HTTPException(status_code=400, detail=f"Unsupported format: {self.fmt}")
 
-            return YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=self.fmt) \
+            res = YouTube(link, on_progress_callback=on_progress).streams.filter(subtype=self.fmt) \
                 .order_by("resolution").desc().first()
+
+            return {
+                "duration": res._monostate.duration,
+                "filesize_mb": res._filesize_mb,
+                "title": res._monostate.title,
+                "url": res.url,
+                "resolution": res.resolution
+            }
+
 
         except exceptions.VideoUnavailable:
             raise HTTPException(status_code=404, detail="Video not found")

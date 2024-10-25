@@ -26,3 +26,4 @@ aiosmtplib
 pika
 aio_pika
 celery[redis]
+prometheus_fastapi_instrumentator

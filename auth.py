@@ -5,10 +5,10 @@ from jose import jwt
 from settings import settings
 from passlib.context import CryptContext
 from models.user import User
-from fastapi.security import HTTPBasic, HTTPBasicCredentials, OAuth2PasswordBearer
+from fastapi.security import HTTPBasic, OAuth2PasswordBearer
 from schemas.token import TokenPayload
 from utils import get_user
-from database import AsyncSessionLocal, engine, Base
+from database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -52,19 +52,6 @@ def create_refresh_token(data: Union[str, Any], expires_delta: int = None) -> st
     encoded_jwt = jwt.encode(to_encode, settings.jwt_refresh_key, ALGORITHM)
     return encoded_jwt
 
-
-async def verification(creds: HTTPBasicCredentials = Depends(securityBasic), db: AsyncSession = Depends(get_db)):
-    username = creds.username
-    password = creds.password
-    user = await get_user(username, db)
-    if user and User.verify_password(password, user.password_hash):
-        return True
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
 
 
 async def get_current_user(token: str = Depends(oauth_scheme), db: AsyncSession = Depends(get_db)) -> User:

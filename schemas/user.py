@@ -7,9 +7,11 @@ class UserRole(BaseModel):
 class UserCreate(BaseModel):
     username: str
     password: str
+    email: str
     role: str
 
 class UserResponse(BaseModel):
     username: str
+    email: str
     role: UserRole
 

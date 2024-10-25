@@ -11,6 +11,7 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(16))
     password_hash = Column(String(128))
+    email = Column(String(128))
     role_id = Column(Integer, ForeignKey("user_roles.id"))
     role = relationship('UserRole', back_populates="users", lazy="selectin")
 

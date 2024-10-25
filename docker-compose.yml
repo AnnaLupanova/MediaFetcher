@@ -1,4 +1,4 @@
-version: '3.11'
+version: '3.8'
 
 services:
   redis:
@@ -32,7 +32,7 @@ services:
     env_file:
       - .env
 
-  api:
+  web:
     build: .
     ports:
       - "8000:8000"
@@ -41,10 +41,6 @@ services:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-#      - DATABASE_URL=postgresql+asyncpg://${PSQL_USER}:${PSQL_PASSWORD}@db:5432/content_api
-#      - REDIS_URL=redis://redis:6379/0
-#      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672//
-#      - CELERY_RESULT_BACKEND=redis://${REDIS_USER}:${REDIS_PASSWORD}redis:6379/0
     depends_on:
       redis:
         condition: service_started
@@ -56,17 +52,32 @@ services:
     env_file:
       - .env
 
-#
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./prometheus_data/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+
   worker:
     build: .
     command: celery -A celery_worker.app worker --loglevel=info -P solo
-    volumes:
-      - ./project:/usr/src/app
     environment:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     depends_on:
-      api:
+      web:
         condition: service_started
       redis:
         condition: service_started
@@ -76,4 +87,6 @@ services:
       - .env
 
 volumes:
+  prometheus_data:
+  grafana_data:
   pgdata:
