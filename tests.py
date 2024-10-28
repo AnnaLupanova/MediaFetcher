@@ -1,11 +1,15 @@
+import json
 from fastapi.testclient import TestClient
-from main import app, get_metadata_with_fmt, get_metadata, get_redis_service
+from main import app, get_metadata, get_redis_service
 import pytest
-from types import SimpleNamespace
+from starlette.requests import Request
 from unittest.mock import patch, MagicMock, AsyncMock
 
-client = TestClient(app)
 
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
 
 @pytest.fixture
 def mock_redis_service():
@@ -21,79 +25,48 @@ def set_dependencies(mock_redis_service):
 
 
 @pytest.fixture
-def mock_fetch_video_info():
-    with patch("main.YoutubeService.fetch_video_info", new_callable=AsyncMock) as mock:
-        yield mock
+def mock_publish_message():
+    with patch('main.publish_message', new_callable=AsyncMock) as publish:
+        yield publish
 
 
-def test_get_link():
-    response = client.get("/get-download-link/7t2alSnE2-I")
-    assert response.status_code == 200
+@pytest.fixture
+def mock_source():
+    with patch('main.Source') as service:
+        yield service
 
+@pytest.fixture
+def mock_rabbit_connection():
+    with patch('main.aio_pika.connect_robust', return_value=AsyncMock()) as conn:
+        yield conn
 
-def test_invalid_url():
-    response = client.get("/get-download-link/7t2alSnE2**")
-    assert response.status_code == 400
-    assert response.json() == {
-        "detail": "regex_search: could not find match for (?:v=|\\/)([0-9A-Za-z_-]{11}).*"
-    }
-
-
-def test_get_video_not_supported():
-    response = client.get("/get-download-link/7t2alSnE2-I/mp3")
-    assert response.status_code == 400
-    assert response.json() == {"detail": "Unsupported format: mp3"}
-
-
-def test_get_video_not_found():
-    response = client.get("/get-download-link/eeeeeeeeeee")
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Video not found"}
 
 
 @pytest.mark.asyncio
-async def test_get_download_link_with_cache_success(set_dependencies, mock_redis_service):
-    mock_redis_service.get_cache = AsyncMock(return_value=b"http://example.com/7t2alSnE2-I")
-    response = await get_metadata("7t2alSnE2-I", redis=mock_redis_service)
-    assert response == "http://example.com/7t2alSnE2-I"
+async def test_get_metadata_user_not_authenticated(client, mock_redis_service):
+    response = client.get("/get-download-link/?source=youtube&video_id=G2-2l9ZLftQ&fmt=mp4")
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid authentication credentials"}
 
 
 @pytest.mark.asyncio
-async def test_get_download_link_empty_cache_success(
-    set_dependencies, mock_redis_service, mock_fetch_video_info
-):
-    mock_redis_service.get_cache = AsyncMock(return_value=None)
-    mock_redis_service.set_cache = AsyncMock()
-    mock_video_info = MagicMock()
-    mock_video_info.url = "http://example.com/7t2alSnE2-I"
-    mock_fetch_video_info.return_value = mock_video_info
-    result = await get_metadata("7t2alSnE2-I", redis=mock_redis_service)
-    assert result == "http://example.com/7t2alSnE2-I"
+async def test_get_link_user_authenticated(client, set_dependencies,mock_publish_message, mock_redis_service):
+
+    with patch.object(Request, "session", {"user": {"email": "test@example.com"}}):
+        mock_redis_service.get_cache = AsyncMock(return_value=b"http://example.com/7t2alSnE2-I")
+        response = client.get("/get-download-link/?source=youtube&video_id=7t2alSnE2-I&fmt=mp4")
+        assert response.status_code == 200
+        assert response.json() == {"detail": "Link for download video was sent by email."}
 
 
 @pytest.mark.asyncio
-async def test_get_json_for_download_with_cache_success(
-    set_dependencies, mock_redis_service, mock_fetch_video_info
-):
-    mock_redis_service.get_cache = AsyncMock(return_value=None)
-    mock_redis_service.set_cache = AsyncMock()
-
-    mock_response = SimpleNamespace(
-        _monostate=SimpleNamespace(
-            duration=300,
-            title="Test Video"
-        ),
-        _filesize_mb=50,
-        url="https://example.com/7t2alSnE2-I",
-        resolution="1080p"
-    )
-
-    mock_fetch_video_info.return_value = mock_response
-    response = await get_metadata_with_fmt("7t2alSnE2-I", "webm", redis=mock_redis_service)
-    assert response == {
-        "duration": 300,
-        "filesize_mb": 50,
-        "title": "Test Video",
-        "url": "https://example.com/7t2alSnE2-I",
-        "resolution": "1080p",
-    }
+async def test_get_link_empty_cache(client, set_dependencies, mock_publish_message, mock_source, mock_redis_service):
+    with patch.object(Request, "session", {"user": {"email": "test@example.com"}}):
+        mock_redis_service.get_cache = AsyncMock(return_value=None)
+        mock_redis_service.set_cache = AsyncMock()
+        mock_video_info = MagicMock()
+        mock_video_info.url = "http://example.com/7t2alSnE2-I"
+        mock_source.return_value = mock_video_info
+        response = client.get("/get-download-link/?source=youtube&video_id=7t2alSnE2-I&fmt=mp4")
+        assert response.status_code == 200
+        assert mock_source.assert_called_once()
