@@ -27,6 +27,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from logger import get_logger
 from enum import Enum
 from service.rabbitmq_service import publish_message
+from contextlib import asynccontextmanager
 
 
 app = FastAPI()
@@ -57,6 +58,15 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await init_roles()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await engine.dispose()
+
+
+
+
 
 
 
@@ -95,7 +105,7 @@ class Source(Enum):
 
 
 @app.get("/get-download-link/")
-async def get_metadata(request: Request, video_id: str, fmt: str,
+async def get_download_link(request: Request, video_id: str, fmt: str,
                        source: Source = Source.youtube.value,
                        redis=Depends(get_redis_service)):
     """
@@ -110,7 +120,6 @@ async def get_metadata(request: Request, video_id: str, fmt: str,
     - Example:
         GET /get-download-link/?source=youtube&video_id=G2-2l9ZLftQ&fmt=mp4
     """
-
     user = request.session.get('user')
     if not user:
         raise HTTPException(
@@ -126,8 +135,8 @@ async def get_metadata(request: Request, video_id: str, fmt: str,
 
     service = source.source_class(video_id, fmt)
     res = await service.fetch_video_info()
-    await redis.set_cache(key=f"{source}${video_id}${fmt}", value=res.url, expire=120)
-    await publish_message(res.url,  user["email"])
+    await redis.set_cache(key=f"{source}${video_id}${fmt}", value=res["url"], expire=120)
+    await publish_message(res["url"],  user["email"])
     return {"detail": "Link for download video was sent by email."}
 
 

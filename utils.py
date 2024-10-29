@@ -75,7 +75,6 @@ class BaseService(abc.ABC):
     def __init__(self, content_id: str, fmt: Annotated[str, VideoFormat] = VideoFormat.MP4.value):
         self.content_id = content_id
         self.fmt = fmt
-        print(f"{self.fmt}")
 
     @abc.abstractmethod
     def get_stream(self) -> Any:

@@ -20,5 +20,7 @@ class AppSettings(BaseSettings):
     celery_result_backend: str = "localhost"
     database_url: str = "localhost"
     rabbitmq_url: str = "localhost"
+    instagram_user: str = ""
+    instagram_password: str = ""
 
 settings = AppSettings()
