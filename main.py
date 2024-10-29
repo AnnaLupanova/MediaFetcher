@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI, HTTPException, Depends, Query, status, Response
+from fastapi import FastAPI, HTTPException, Depends, status, Response
 from settings import AppSettings
 from fastapi.responses import JSONResponse
 from service.redis_service import get_redis_service
@@ -27,7 +27,6 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from logger import get_logger
 from enum import Enum
 from service.rabbitmq_service import publish_message
-from contextlib import asynccontextmanager
 
 
 app = FastAPI()
@@ -63,11 +62,6 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await engine.dispose()
-
-
-
-
-
 
 
 @app.middleware("http")
